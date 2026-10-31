@@ -258,13 +258,44 @@ const chip=html=>{const d=document.createElement("div");d.className="chip";d.inn
 function setChips(id,items){const box=document.getElementById(id);box.innerHTML="";items.forEach(t=>box.appendChild(chip(t)));}
 const $=id=>document.getElementById(id);
 
+// 纯数学核心：CI 从这里切片测试（tests/math.test.mjs）
+// [MATH-BEGIN]
+function harmonicsSquare(t, N) { // 方波傅里叶合成
+  let y = 0;
+  for (let n = 1; n <= N; n += 2) y += Math.sin(n * 2 * Math.PI * t) / n;
+  return y * 4 / Math.PI;
+}
+function aliasFreq(f0, fs) { // 采样后的带内混叠频率
+  return f0 - fs * Math.round(f0 / fs);
+}
+function rcGainDb(r, mode) { // 一阶 RC 幅频（r = f/fc）
+  return mode === "low" ? -10 * Math.log10(1 + r * r)
+                        : 10 * Math.log10(r * r / (1 + r * r));
+}
+function amSideband(m) { return m / 2; } // AM 边带幅度
+function carrierPowerPct(m) { return 100 / (1 + m * m / 2); }
+function convRectRect(fWidth, T, dt) { // 矩形⊛矩形 数值卷积峰值
+  let peak = 0;
+  for (let t = 0; t <= fWidth + T + 1; t += dt) {
+    let s = 0;
+    for (let tau = 0; tau <= fWidth + T; tau += dt) {
+      const fv = tau >= 0 && tau <= fWidth ? 1 : 0;
+      const hv = t - tau >= 0 && t - tau <= T ? 1 : 0;
+      s += fv * hv * dt;
+    }
+    peak = Math.max(peak, s);
+  }
+  return peak;
+}
+// [MATH-END]
+
 /* ================= 实验 1：采样与混叠 ================= */
 (function(){
   function render(){
     const f0=+$("s-f0").value, fs=+$("s-fs").value;
     $("v-f0").textContent=f0.toFixed(1);
     $("v-fs").textContent=fs.toFixed(1);
-    const alias=f0-fs*Math.round(f0/fs);      // 带内混叠频率（可为负，cos 偶函数）
+    const alias=aliasFreq(f0,fs);      // 带内混叠频率（可为负，cos 偶函数）
     const aAbs=Math.abs(alias);
     const aliased=Math.abs(f0-fs/2)>1e-9 && f0>fs/2-1e-9;
     // 时域窗口：显示 max(3/f0, 1) ms 量级（单位 ms，频率 kHz → 时间 ms）
@@ -331,9 +362,8 @@ const $=id=>document.getElementById(id);
     const pts=[];let peak=-1e9,peakX=0;
     const M=1200;
     for(let i=0;i<=M;i++){
-      const t=2*i/M;let y=0;
-      for(let n=1;n<=N;n+=2)y+=Math.sin(n*w0*t)/n;
-      y*=4/Math.PI;
+      const t=2*i/M;
+      const y=harmonicsSquare(t,N);
       pts.push([t,y]);
       if(y>peak){peak=y;peakX=t;}
     }
@@ -466,9 +496,7 @@ const $=id=>document.getElementById(id);
     for(let i=0;i<=700;i++){
       const x=Math.log10(0.02)+ (Math.log10(50)-Math.log10(0.02))*i/700;
       const r=Math.pow(10,x); // f/fc
-      let dB,ph;
-      if(mode==="low"){dB=-10*Math.log10(1+r*r);ph=-Math.atan(r)*180/Math.PI;}
-      else{dB=10*Math.log10(r*r/(1+r*r));ph=90-Math.atan(r)*180/Math.PI;}
+      const dB=rcGainDb(r,mode);
       pts.push([x,dB]);
       if(Math.abs(r-1)<1e-3)dBatFc=dB;
     }
