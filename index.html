@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>信号与系统 · 交互实验台</title>
+<style>
+:root{
+  --bg:#f5f7fa; --panel:#ffffff; --ink:#1c2733; --muted:#6b7a89;
+  --accent:#0f6cbd; --accent2:#d97706; --good:#15803d; --bad:#b91c1c;
+  --line:#dbe3ec; --chip:#eef4fb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.55}
+header{background:var(--panel);border-bottom:1px solid var(--line);
+  padding:14px 20px 0;position:sticky;top:0;z-index:5}
+h1{margin:0;font-size:19px;font-weight:600}
+h1 small{color:var(--muted);font-weight:400;font-size:13px;margin-left:10px}
+.tabs{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+.tabs button{border:none;background:none;padding:9px 14px;font-size:14px;cursor:pointer;
+  color:var(--muted);border-bottom:2.5px solid transparent;font-family:inherit}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:1060px;margin:0 auto;padding:18px 16px 40px}
+section{display:none}
+section.on{display:block}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px}
+.panel h2{margin:0 0 4px;font-size:16px}
+.hint{color:var(--muted);font-size:13px;margin:0 0 10px}
+.ctrls{display:flex;flex-wrap:wrap;gap:14px 22px;margin-bottom:6px}
+.ctrl{min-width:200px;flex:1}
+.ctrl label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.ctrl label b{color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{background:var(--chip);border-radius:8px;padding:6px 12px;font-size:13px}
+.chip b{font-variant-numeric:tabular-nums}
+canvas{width:100%;display:block;background:#fff;border:1px solid var(--line);border-radius:8px}
+.plotwrap{margin-top:10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.btns button{border:1px solid var(--line);background:#fff;border-radius:7px;
+  padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btns button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.note{font-size:12.5px;color:var(--muted);margin-top:8px}
+.stable{color:var(--good);font-weight:600}
+.unstable{color:var(--bad);font-weight:600}
+footer{max-width:1060px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:12.5px}
+footer a{color:var(--accent)}
+@media (max-width:640px){ .ctrl{min-width:100%} }
+</style>
+</head>
+<body>
+<header>
+  <h1>信号与系统 · 交互实验台<small>采样 · 傅里叶 · 卷积 · 滤波 · 调制 · 全部本地计算 · 零依赖单文件</small></h1>
+  <nav class="tabs" id="tabs">
+    <button data-t="samp" class="on">采样与混叠</button>
+    <button data-t="fs">傅里叶级数</button>
+    <button data-t="conv">卷积</button>
+    <button data-t="rc">RC 滤波器</button>
+    <button data-t="am">AM 调幅</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ============ 1 采样与混叠 ============ -->
+<section id="tab-samp" class="on">
+  <div class="panel">
+    <h2>采样与混叠：fs 要多快才够？</h2>
+    <p class="hint">对余弦信号 cos(2πf₀t) 以 fs 采样（竖线点）。采样让频谱以 fs 周期延拓——若 f₀ &gt; fs/2，镜像分量落回带内，重建出的（橙色）信号频率是<b>混叠频率</b>，但完美穿过每一个采样点。</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>信号频率 f₀ (kHz) <b id="v-f0"></b></label>
+        <input type="range" id="s-f0" min="0.5" max="10" step="0.1" value="3"></div>
+      <div class="ctrl"><label>采样率 fs (kHz) <b id="v-fs"></b></label>
+        <input type="range" id="s-fs" min="1" max="24" step="0.1" value="8"></div>
+    </div>
+    <div class="chips" id="samp-chips"></div>
+    <div class="plotwrap"><canvas id="cv-samp-t" height="300"></canvas></div>
+    <div class="plotwrap"><canvas id="cv-samp-f" height="240"></canvas></div>
+    <p class="note">判据：fs &gt; 2f₀（奈奎斯特）才无混叠。试着把 f₀ 拖过 fs/2 那条线——重建信号突变到低频，但采样点纹丝不动。这正是「欠采样后无法分辨 5kHz 和 3kHz」的原因。频谱图里灰线是各阶镜像 k·fs±f₀，红线是落入带内的混叠分量。</p>
+  </div>
+</section>
+
+<!-- ============ 2 傅里叶级数 ============ -->
+<section id="tab-fs">
+  <div class="panel">
+    <h2>傅里叶级数：用正弦堆出一堵方波</h2>
+    <p class="hint">方波 = (4/π)·Σ sin(nωt)/n（n 取奇数）。拖动滑块增加谐波数 N，观察边缘的振荡（<b>吉布斯现象</b>）如何收窄但<b>永不过冲消失</b>。</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>谐波数 N（奇数） <b id="v-n"></b></label>
+        <input type="range" id="f-n" min="1" max="99" step="2" value="5"></div>
+    </div>
+    <div class="chips" id="fs-chips"></div>
+    <div class="plotwrap"><canvas id="cv-fs-t" height="300"></canvas></div>
+    <div class="plotwrap"><canvas id="cv-fs-f" height="220"></canvas></div>
+    <p class="note">判读：基波幅度 4/π≈1.273；跳变高度为 2，吉布斯过冲恒为跳变的 ≈8.95%（N→∞ 时收敛到跳变线两侧但不消失）。频谱只含奇次谐波，幅度 ∝ 1/n。</p>
+  </div>
+</section>
+
+<!-- ============ 3 卷积 ============ -->
+<section id="tab-conv">
+  <div class="panel">
+    <h2>卷积：翻转、平移、乘、累加</h2>
+    <p class="hint">输入 f(t) 固定为宽 2 的单位矩形脉冲；选择系统冲激响应 h(t) 并调节其特征宽度 T。拖动「当前时刻」滑块，中间图显示 f(τ)·h(t−τ) 的阴影面积——那个面积就是 y(t) 在 t 时刻的值。</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>系统 h(t)</label>
+        <select id="c-h">
+          <option value="rect">矩形脉冲（宽 T）</option>
+          <option value="tri">三角脉冲（宽 2T）</option>
+          <option value="rc">RC 指数响应（τ=T）</option>
+        </select></div>
+      <div class="ctrl"><label>特征宽度 T <b id="v-t"></b></label>
+        <input type="range" id="c-t" min="0.2" max="2" step="0.05" value="1"></div>
+      <div class="ctrl"><label>当前时刻 t <b id="v-ct"></b></label>
+        <input type="range" id="c-ct" min="0" max="5" step="0.02" value="1.2"></div>
+    </div>
+    <div class="btns">
+      <button id="c-play">▶ 播放扫描</button>
+    </div>
+    <div class="chips" id="conv-chips"></div>
+    <div class="plotwrap"><canvas id="cv-conv" height="430"></canvas></div>
+    <p class="note">判读：矩形⊛矩形 = 梯形（上升沿宽 = T，平台 = 2−T，形状由「重叠面积」而来）；矩形⊛指数 = 电容充电曲线。卷积交换律：f⊛h = h⊛f。</p>
+  </div>
+</section>
+
+<!-- ============ 4 RC 滤波器 ============ -->
+<section id="tab-rc">
+  <div class="panel">
+    <h2>一阶 RC 滤波器：同一个电路，两种看法</h2>
+    <p class="hint">fc = 1/(2πRC)。频域看：fc 处恰好 −3dB、之后每十倍频 −20dB；时域看：阶跃在 t=τ 处爬到 63.2%。拖动 fc 观察两个视图如何联动——τ = 1/(2πfc)。</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>类型</label>
+        <select id="r-mode">
+          <option value="low">低通（取电容电压）</option>
+          <option value="high">高通（取电阻电压）</option>
+        </select></div>
+      <div class="ctrl"><label>截止频率 fc (kHz) <b id="v-fc"></b></label>
+        <input type="range" id="r-fc" min="0.2" max="8" step="0.05" value="1"></div>
+    </div>
+    <div class="chips" id="rc-chips"></div>
+    <div class="plotwrap"><canvas id="cv-rc-f" height="260"></canvas></div>
+    <div class="plotwrap"><canvas id="cv-rc-t" height="240"></canvas></div>
+    <p class="note">低通：|H| = 1/√(1+(f/fc)²)，相移 −45° @ fc；高通：|H| = (f/fc)/√(1+(f/fc)²)。阶跃响应：低通 1−e^(−t/τ)（63.2% @ τ），高通 e^(−t/τ) 从 1 跌向 0——同一个 τ，两个世界。</p>
+  </div>
+</section>
+
+<!-- ============ 5 AM 调幅 ============ -->
+<section id="tab-am">
+  <div class="panel">
+    <h2>AM 调幅：频谱搬移</h2>
+    <p class="hint">s(t) = [1 + m·cos(2πf<sub>m</sub>t)]·cos(2πf<sub>c</sub>t)。时域：载波被包络 1±m·cos 骑着；频域：一根载波线 + 两根边带线——频率被「搬移」到了 f<sub>c</sub> 两侧。</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>载波频率 f<sub>c</sub> (kHz) <b id="v-fc2"></b></label>
+        <input type="range" id="a-fc" min="4" max="30" step="0.5" value="12"></div>
+      <div class="ctrl"><label>调制频率 f<sub>m</sub> (kHz) <b id="v-fm"></b></label>
+        <input type="range" id="a-fm" min="0.5" max="3" step="0.1" value="1.5"></div>
+      <div class="ctrl"><label>调幅度 m <b id="v-m"></b></label>
+        <input type="range" id="a-m" min="0" max="1.5" step="0.05" value="0.7"></div>
+    </div>
+    <div class="chips" id="am-chips"></div>
+    <div class="plotwrap"><canvas id="cv-am-t" height="300"></canvas></div>
+    <div class="plotwrap"><canvas id="cv-am-f" height="220"></canvas></div>
+    <p class="note">判读：边带幅度 = m/2，带宽 = 2f<sub>m</sub>；m&gt;1 为<b>过调制</b>——包络反转，包络检波失真。载波本身不携带信息：m=1 时仍有 2/3 的功率浪费在载波上（这正是后来单边带/抑制载波调制的动机）。</p>
+  </div>
+</section>
+
+</main>
+<footer>信号与系统交互实验台 · 单文件离线可用 · MIT License · 由 Leslieryin 维护 · 与 <a href="https://github.com/Leslieryin/control-lab">control-lab</a> / <a href="https://github.com/Leslieryin/modern-control-lab">modern-control-lab</a> / <a href="https://github.com/Leslieryin/process-control-lab">process-control-lab</a> 配套</footer>
+
+<script>
+"use strict";
+/* ================= 画布工具（与前三个实验台同源） ================= */
+function setupCanvas(cv){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth||300,h=cv.clientHeight||+cv.dataset.h||300;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  }
+  const ctx=cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  return{ctx,w,h};
+}
+class Plot{
+  constructor(cv){this.cv=cv;}
+  frame(xr,yr,opt={}){
+    const{ctx,w,h}=setupCanvas(this.cv);
+    this.ctx=ctx;this.w=w;this.h=h;this.xr=xr;this.yr=yr;
+    this.padL=opt.padL??46;this.padR=opt.padR??14;this.padT=opt.padT??12;this.padB=opt.padB??26;
+    const X=x=>this.padL+(x-xr[0])/(xr[1]-xr[0])*(w-this.padL-this.padR);
+    const Y=y=>h-this.padB-(y-yr[0])/(yr[1]-yr[0])*(h-this.padT-this.padB);
+    this.X=X;this.Y=Y;
+    ctx.font="11px system-ui";ctx.fillStyle="#8a97a5";ctx.strokeStyle="#e4eaf1";ctx.lineWidth=1;
+    const nx=opt.nx??6,ny=opt.ny??5;
+    for(let i=0;i<=nx;i++){
+      const x=xr[0]+(xr[1]-xr[0])*i/nx;
+      ctx.beginPath();ctx.moveTo(X(x),this.padT);ctx.lineTo(X(x),h-this.padB);ctx.stroke();
+      ctx.textAlign=i===0?"left":i===nx?"right":"center";
+      ctx.fillText(opt.fx?opt.fx(x):fmt(x),X(x),h-this.padB+14);
+    }
+    for(let j=0;j<=ny;j++){
+      const y=yr[0]+(yr[1]-yr[0])*j/ny;
+      ctx.beginPath();ctx.moveTo(this.padL,Y(y));ctx.lineTo(w-this.padR,Y(y));ctx.stroke();
+      ctx.textAlign="right";ctx.fillText(opt.fy?opt.fy(y):fmt(y),this.padL-6,Y(y)+4);
+    }
+    ctx.strokeStyle="#b9c5d2";
+    if(yr[0]<0&&yr[1]>0){ctx.beginPath();ctx.moveTo(this.padL,Y(0));ctx.lineTo(w-this.padR,Y(0));ctx.stroke();}
+    return this;
+  }
+  line(pts,color,width=2,dash=null){
+    const{ctx}=this;ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;
+    if(dash)ctx.setLineDash(dash);
+    ctx.beginPath();let st=false;
+    for(const p of pts){
+      const x=this.X(p[0]),y=this.Y(p[1]);
+      if(!isFinite(x)||!isFinite(y)){st=false;continue;}
+      if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();ctx.restore();return this;
+  }
+  vline(x,color,dash=[4,4],width=1){
+    const{ctx}=this;ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;
+    if(dash)ctx.setLineDash(dash);
+    ctx.beginPath();ctx.moveTo(this.X(x),this.padT);ctx.lineTo(this.X(x),this.h-this.padB);ctx.stroke();
+    ctx.restore();return this;
+  }
+  dot(x,y,color,r=3.5){const{ctx}=this;ctx.fillStyle=color;ctx.beginPath();
+    ctx.arc(this.X(x),this.Y(y),r,0,7);ctx.fill();return this;}
+  text(t,x,y,color="#374b5f",size=12,align="left"){const{ctx}=this;ctx.fillStyle=color;
+    ctx.font=size+"px system-ui";ctx.textAlign=align;ctx.fillText(t,this.X(x),this.Y(y));return this;}
+  screenText(t,px,py,color,size=12,align="left"){const{ctx}=this;ctx.fillStyle=color;
+    ctx.font=size+"px system-ui";ctx.textAlign=align;ctx.fillText(t,px,py);return this;}
+  hline(y,color,dash=[4,4]){return this.line([[this.xr[0],y],[this.xr[1],y]],color,1,dash);}
+  stem(x,y0,y1,color,width=2){
+    const{ctx}=this;ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;
+    ctx.beginPath();ctx.moveTo(this.X(x),this.Y(y0));ctx.lineTo(this.X(x),this.Y(y1));ctx.stroke();
+    ctx.restore();return this;
+  }
+  shade(pts,color){ // 多边形填充
+    const{ctx}=this;ctx.save();ctx.fillStyle=color;
+    ctx.beginPath();
+    pts.forEach((p,i)=>{const x=this.X(p[0]),y=this.Y(p[1]);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+    ctx.closePath();ctx.fill();ctx.restore();return this;
+  }
+}
+const fmt=v=>{
+  if(v===0)return"0";
+  const a=Math.abs(v);
+  if(a>=1000||a<0.01)return v.toExponential(1);
+  if(a>=100)return v.toFixed(0);
+  if(a>=10)return v.toFixed(1);
+  return v.toFixed(2);
+};
+const chip=html=>{const d=document.createElement("div");d.className="chip";d.innerHTML=html;return d;};
+function setChips(id,items){const box=document.getElementById(id);box.innerHTML="";items.forEach(t=>box.appendChild(chip(t)));}
+const $=id=>document.getElementById(id);
+
+/* ================= 实验 1：采样与混叠 ================= */
+(function(){
+  function render(){
+    const f0=+$("s-f0").value, fs=+$("s-fs").value;
+    $("v-f0").textContent=f0.toFixed(1);
+    $("v-fs").textContent=fs.toFixed(1);
+    const alias=f0-fs*Math.round(f0/fs);      // 带内混叠频率（可为负，cos 偶函数）
+    const aAbs=Math.abs(alias);
+    const aliased=Math.abs(f0-fs/2)>1e-9 && f0>fs/2-1e-9;
+    // 时域窗口：显示 max(3/f0, 1) ms 量级（单位 ms，频率 kHz → 时间 ms）
+    const T=Math.max(3/f0,0.4);
+    const p=new Plot($("cv-samp-t"));
+    p.frame([0,T],[-1.35,1.35]);
+    // 连续信号
+    const cont=[];for(let i=0;i<=800;i++){const t=T*i/800;cont.push([t,Math.cos(2*Math.PI*f0*t)]);}
+    p.line(cont,"#0f6cbd",2);
+    // 采样点（stem）
+    const Ts=1/fs, n=Math.floor(T/Ts);
+    for(let k=0;k<=n;k++){const t=k*Ts;
+      p.stem(t,-1.25,Math.cos(2*Math.PI*f0*t),"#94a3b8",1);
+      p.dot(t,Math.cos(2*Math.PI*f0*t),"#334155",3);}
+    // 重建（理想低通取带内分量）
+    const rec=[];for(let i=0;i<=600;i++){const t=T*i/600;rec.push([t,Math.cos(2*Math.PI*alias*t)]);}
+    p.line(rec,aliased?"#d97706":"#15803d",2.2,[7,4]);
+    p.screenText("连续信号",p.w-10,20,"#0f6cbd",11,"right");
+    p.screenText("采样点",p.w-10,36,"#334155",11,"right");
+    p.screenText(aliased?"重建=混叠分量":"重建=原信号",p.w-10,52,aliased?"#d97706":"#15803d",11,"right");
+    // 频域：镜像 k·fs ± f0
+    const q=new Plot($("cv-samp-f"));
+    const fmax=Math.max(3*f0,2.2*fs);
+    q.frame([0,fmax],[0,1.15]);
+    q.vline(fs/2,"#c9d4e0",[2,3],1.2);
+    q.screenText("fs/2",q.X(fs/2),q.padT+10,"#8a97a5",10,"center");
+    const seen=new Set();
+    for(let k=-4;k<=4;k++){
+      for(const f of [k*fs+f0,k*fs-f0]){
+        const af=Math.abs(f);
+        if(af<1e-9||af>fmax||seen.has(af.toFixed(3)))continue;
+        seen.add(af.toFixed(3));
+        const inBand=Math.abs(af-f0)<1e-6;
+        q.stem(af,0,0.5+(inBand?0.45:0),inBand?"#0f6cbd":(af<=fs/2+1e-6?"#b91c1c":"#94a3b8"),2.4);
+      }
+    }
+    q.dot(f0,0.95,"#0f6cbd",4);
+    q.screenText("f₀="+f0.toFixed(1),q.X(f0),q.h-q.padB-6,"#0f6cbd",11,"center");
+    setChips("samp-chips",[
+      `fs/2 = <b>${(fs/2).toFixed(1)} kHz</b>`,
+      aliased?`<span class="unstable">欠采样：f₀ &gt; fs/2</span>`:`<span class="stable">fs &gt; 2f₀，满足奈奎斯特</span>`,
+      aliased?`混叠频率 f<sub>a</sub> = |f₀ − fs| 类 = <b>${aAbs.toFixed(1)} kHz</b>（橙色重建）`:`重建频率 = <b>${aAbs.toFixed(1)} kHz</b>（= 原信号）`,
+      `采样点数（图内）= <b>${n+1}</b>`,
+      alias===0?`<span class="unstable">f₀ 恰为 fs 整数分点：采样值恒为 1，全部信息丢失</span>`:"",
+    ].filter(Boolean));
+  }
+  $("s-f0").addEventListener("input",render);
+  $("s-fs").addEventListener("input",render);
+  window.addEventListener("resize",render);
+  render();
+})();
+
+/* ================= 实验 2：傅里叶级数 ================= */
+(function(){
+  function render(){
+    const N=+$("f-n").value;
+    $("v-n").textContent=N;
+    const T=2*Math.PI, w0=2*Math.PI;
+    const p=new Plot($("cv-fs-t"));
+    p.frame([0,2],[-1.6,1.9]);
+    // 理想方波 ±1（前半 +1）
+    p.line([[0,1],[1,1],[1,-1],[2,-1]],"#c9d4e0",2.4);
+    // 合成
+    const pts=[];let peak=-1e9,peakX=0;
+    const M=1200;
+    for(let i=0;i<=M;i++){
+      const t=2*i/M;let y=0;
+      for(let n=1;n<=N;n+=2)y+=Math.sin(n*w0*t)/n;
+      y*=4/Math.PI;
+      pts.push([t,y]);
+      if(y>peak){peak=y;peakX=t;}
+    }
+    p.line(pts,"#0f6cbd",2.2);
+    if(peak>1.005){
+      p.dot(peakX,peak,"#d97706",4);
+      p.text("过冲 "+((peak-1)/2*100).toFixed(1)+"%",peakX,peak+0.14,"#b45309",11,"center");
+    }
+    p.text("理想方波",1.62,1.28,"#8a97a5",11,"right");
+    // 频谱
+    const q=new Plot($("cv-fs-f"));
+    const nMax=Math.max(N,7);
+    q.frame([0,nMax+2],[0,1.4],{nx:Math.min(nMax+2,10)});
+    for(let n=1;n<=N;n+=2){
+      const a=4/Math.PI/n;
+      q.stem(n,0,a,"#0f6cbd",2.6);
+      q.text(n.toFixed(0),n,-0.1,"#8a97a5",10,"center");
+    }
+    q.screenText("谐波次数 n（幅度 4/πn）",q.padL+6,q.padT+14,"#8a97a5",11);
+    const overshoot=(peak-1)/2*100;
+    setChips("fs-chips",[
+      `谐波数 N = <b>${N}</b>`,
+      `基波峰值 4/π ≈ <b>1.273</b>`,
+      `实测过冲 = <b>${overshoot.toFixed(1)}%</b>（理论吉布斯值 ≈ 8.95%）`,
+      N>=49?`<span class="stable">N 足够大：过冲已稳定在 8.95%，不再下降——这就是吉布斯现象</span>`:`<span class="stable">增大 N：振荡变窄，但过冲高度不变</span>`,
+    ]);
+  }
+  $("f-n").addEventListener("input",render);
+  window.addEventListener("resize",render);
+  render();
+})();
+
+/* ================= 实验 3：卷积 ================= */
+(function(){
+  let playTimer=null;
+  function hVal(kind,T,x){ // h(x)，定义域 x>=0
+    if(x<0)return 0;
+    if(kind==="rect")return x<=T?1:0;
+    if(kind==="tri"){const w=2*T;return x<=w?1-Math.abs(x-w/2)/(w/2):0;}
+    if(kind==="rc")return x<=8*T?Math.exp(-x/T):0;
+    return 0;
+  }
+  function render(){
+    const kind=$("c-h").value,T=+$("c-t").value,ct=+$("c-ct").value;
+    $("v-t").textContent=T.toFixed(2);
+    $("v-ct").textContent=ct.toFixed(2);
+    const f=x=>(x>=0&&x<=2)?1:0;
+    const tEnd=6,dt=0.004;
+    // 输出 y(t)=∫f(τ)h(t-τ)dτ 数值
+    const yArr=[];let yPeak=0,yAt=0;
+    for(let t=0;t<=tEnd+1e-9;t+=dt){
+      let s=0;
+      for(let tau=0;tau<=2.001;tau+=dt)s+=f(tau)*hVal(kind,T,t-tau)*dt;
+      yArr.push([t,s]);
+      if(s>yPeak){yPeak=s;}
+      if(Math.abs(t-ct)<dt)yAt=s;
+    }
+    const p=new Plot($("cv-conv"));
+    const hMax=Math.max(1.05, yPeak*1.1);
+    p.frame([0,tEnd],[-0.15,2.6]);
+    // 三层：f(τ)、h(t-τ) 与乘积阴影、y(t)
+    // f(τ)
+    p.line([[0,0],[0,1],[2,1],[2,0]],"#0f6cbd",2);
+    p.text("f(τ)",0.1,1.12,"#0f6cbd",11);
+    // h(t-τ)（翻转平移）
+    const hPts=[];
+    for(let x=-0.001;x<=8*T;x+=0.01)hPts.push([ct-x,hVal(kind,T,x)]);
+    p.line(hPts,"#d97706",2);
+    p.text("h(t−τ)",Math.max(0.05,ct-2*T+0.1),2.45,"#b45309",11);
+    // 乘积阴影
+    const shadePts=[[0,0]];
+    for(let tau=0;tau<=2.001;tau+=0.01){
+      const hv=hVal(kind,T,ct-tau);
+      shadePts.push([tau,f(tau)*hv]);
+    }
+    shadePts.push([2,0]);
+    if(ct>0&&ct<tEnd)p.shade(shadePts,"rgba(15,108,189,0.28)");
+    p.vline(ct,"#15803d",[3,3],1.4);
+    p.dot(ct,yAt,"#15803d",4);
+    p.text("y(t) 当前值",ct,yAt+0.14,"#15803d",11,"center");
+    // y(t) 曲线（画在下半轴，缩放到 0..2.6 内）
+    const yScale=2.6/hMax*0.85;
+    p.line(yArr.map(([t,y])=>[t,y*yScale]),"#7c3aed",2.2);
+    p.text("y(t) = f⊛h（缩放显示）",tEnd-0.05,yPeak*yScale-0.12,"#7c3aed",11,"right");
+    // 理论锚点
+    let theory="—";
+    if(kind==="rect")theory=`梯形：峰 = min(2, T) = ${Math.min(2,T).toFixed(2)}`;
+    else if(kind==="tri")theory=`平滑双峰：峰 = ${ (2*T/2).toFixed(2) }×0.5×2 = ${(T).toFixed(2)}（中部）`;
+    else theory=`充电曲线：终值 = ∫₀^∞ e^(-x/T)dx = T = ${T.toFixed(2)}`;
+    setChips("conv-chips",[
+      `h 类型：<b>${$("c-h").selectedOptions[0].text}</b>，T = <b>${T.toFixed(2)}</b>`,
+      `t = <b>${ct.toFixed(2)}</b> 处阴影面积（=y）：<b>${yAt.toFixed(3)}</b>`,
+      `y 峰值 = <b>${yPeak.toFixed(3)}</b>`,
+      `理论对照：${theory}`,
+    ]);
+  }
+  $("c-h").addEventListener("change",render);
+  $("c-t").addEventListener("input",render);
+  $("c-ct").addEventListener("input",()=>{stopPlay();render();});
+  window.addEventListener("resize",render);
+  function stopPlay(){
+    if(playTimer){clearInterval(playTimer);playTimer=null;
+      $("c-play").textContent="▶ 播放扫描";$("c-play").classList.remove("on");}
+  }
+  $("c-play").addEventListener("click",()=>{
+    if(playTimer){stopPlay();return;}
+    $("c-play").textContent="⏸ 暂停";$("c-play").classList.add("on");
+    playTimer=setInterval(()=>{
+      let v=+$("c-ct").value+0.03;
+      if(v>=5)v=0;
+      $("c-ct").value=v.toFixed(2);
+      render();
+    },40);
+  });
+  render();
+})();
+
+/* ================= 实验 4：RC 滤波器 ================= */
+(function(){
+  function render(){
+    const mode=$("r-mode").value,fc=+$("r-fc").value; // kHz
+    $("v-fc").textContent=fc.toFixed(2);
+    const tau=1/(2*Math.PI*fc); // ms（fc kHz → τ ms）
+    // 频域 10 Hz .. 10 MHz → 0.01 .. 10000 (×fc 归一)；画 0.02fc..50fc
+    const p=new Plot($("cv-rc-f"));
+    p.frame([Math.log10(0.02),Math.log10(50)],[-32,10],
+      {fx:x=>{const f=fc*Math.pow(10,x);return f>=1000?(f/1000).toFixed(0)+"M":f>=1?f.toFixed(1)+"k":f.toFixed(2);},
+       fy:y=>y.toFixed(0),nx:6,ny:4});
+    const pts=[];let dBatFc=-1e9;
+    for(let i=0;i<=700;i++){
+      const x=Math.log10(0.02)+ (Math.log10(50)-Math.log10(0.02))*i/700;
+      const r=Math.pow(10,x); // f/fc
+      let dB,ph;
+      if(mode==="low"){dB=-10*Math.log10(1+r*r);ph=-Math.atan(r)*180/Math.PI;}
+      else{dB=10*Math.log10(r*r/(1+r*r));ph=90-Math.atan(r)*180/Math.PI;}
+      pts.push([x,dB]);
+      if(Math.abs(r-1)<1e-3)dBatFc=dB;
+    }
+    p.hline(-3,"#c9d4e0");
+    p.line(pts,"#0f6cbd",2.4);
+    p.dot(0,dBatFc,"#d97706",4.5);
+    p.screenText("−3.01dB @ fc",p.X(0)+8,p.Y(dBatFc)-8,"#b45309",11);
+    p.screenText(mode==="low"?"低通幅频 |H| / dB":"高通幅频 |H| / dB",p.padL+8,p.padT+16,"#8a97a5",11);
+    // 渐近线（低通：0dB → −20dB/dec from fc）
+    if(mode==="low"){
+      p.line([[Math.log10(0.02),0],[0,0],[Math.log10(50),-20*Math.log10(50)]],"#d97706",1.4,[6,4]);
+    }else{
+      p.line([[Math.log10(0.02),20*Math.log10(0.02)],[0,0],[Math.log10(50),0]],"#d97706",1.4,[6,4]);
+    }
+    // 时域 0..6τ
+    const q=new Plot($("cv-rc-t"));
+    q.frame([0,6],[-0.08,1.12],{fx:x=>x.toFixed(1),ny:4});
+    const step=[];
+    for(let i=0;i<=600;i++){
+      const t=6*i/600;
+      step.push([t,mode==="low"?1-Math.exp(-t):Math.exp(-t)]);
+    }
+    q.line(step,"#0f6cbd",2.4);
+    q.hline(1,"#c9d4e0");
+    if(mode==="low"){
+      q.dot(1,1-Math.exp(-1),"#d97706",4);
+      q.text("63.2% @ τ=1/(2πfc)",1,1-Math.exp(-1)-0.1,"#b45309",11,"center");
+      q.text("阶跃响应 1−e^(−t/τ)",q.w-q.padR-6,0.14,"#0f6cbd",11,"right");
+    }else{
+      q.dot(1,Math.exp(-1),"#d97706",4);
+      q.text("36.8% @ τ",1,Math.exp(-1)+0.12,"#b45309",11,"center");
+      q.text("阶跃响应 e^(−t/τ)",q.w-q.padR-6,0.9,"#0f6cbd",11,"right");
+    }
+    q.screenText("t / τ",q.w/2,q.h-6,"#8a97a5",10,"center");
+    setChips("rc-chips",[
+      `fc = <b>${fc.toFixed(2)} kHz</b>，τ = 1/(2πfc) = <b>${(tau*1000).toFixed(1)} µs</b>`,
+      `实测 @fc：<b>${dBatFc.toFixed(2)} dB</b>（理论 −3.01）`,
+      `斜率：远离 fc 后 ±20dB/十倍频`,
+      mode==="low"?`阶跃 @τ = <b>${((1-Math.exp(-1))*100).toFixed(1)}%</b>（理论 63.2%）`
+                  :`阶跃 @τ = <b>${(Math.exp(-1)*100).toFixed(1)}%</b>（理论 36.8%）`,
+    ]);
+  }
+  $("r-mode").addEventListener("change",render);
+  $("r-fc").addEventListener("input",render);
+  window.addEventListener("resize",render);
+  render();
+})();
+
+/* ================= 实验 5：AM 调幅 ================= */
+(function(){
+  function render(){
+    const fc=+$("a-fc").value,fm=+$("a-fm").value,m=+$("a-m").value;
+    $("v-fc2").textContent=fc.toFixed(1);
+    $("v-fm").textContent=fm.toFixed(1);
+    $("v-m").textContent=m.toFixed(2);
+    const T=2/fm;
+    const p=new Plot($("cv-am-t"));
+    p.frame([0,T],[-(1.15+m),1.15+m]);
+    const envU=[],envD=[],sig=[];
+    const M=1400;
+    for(let i=0;i<=M;i++){
+      const t=T*i/M;
+      const env=1+m*Math.cos(2*Math.PI*fm*t);
+      sig.push([t,env*Math.cos(2*Math.PI*fc*t)]);
+      envU.push([t,env]);envD.push([t,-env]);
+    }
+    p.line(sig,"#0f6cbd",1.4);
+    p.line(envU,"#d97706",1.8,[6,4]);
+    p.line(envD,"#d97706",1.8,[6,4]);
+    p.text("包络 1±m·cos",T*0.985,1.15+m*0.55,"#b45309",11,"right");
+    if(m>1)p.screenText("⚠ 过调制：包络反转，包络检波失真",p.w/2,p.padT+14,"#b91c1c",12,"center");
+    // 频谱
+    const q=new Plot($("cv-am-f"));
+    q.frame([fc-3*fm,fc+3*fm],[0,1.25]);
+    q.stem(fc,0,1,"#0f6cbd",3);
+    q.stem(fc-fm,0,m/2,"#15803d",2.6);
+    q.stem(fc+fm,0,m/2,"#15803d",2.6);
+    q.text("fc",fc,-0.09,"#0f6cbd",11,"center");
+    q.text("fc−fm",fc-fm,-0.09,"#15803d",11,"center");
+    q.text("fc+fm",fc+fm,-0.09,"#15803d",11,"center");
+    q.screenText("边带 = m/2",q.X(fc+fm)+10,q.Y(m/2)+4,"#15803d",11,"left");
+    setChips("am-chips",[
+      `边带幅度 m/2 = <b>${(m/2).toFixed(2)}</b>（上下各一根）`,
+      `带宽 = 2f<sub>m</sub> = <b>${(2*fm).toFixed(1)} kHz</b>`,
+      `载波功率占比 = 1/(1+m²/2) = <b>${(100/(1+m*m/2)).toFixed(0)}%</b>${m>0?"（不携带信息）":""}`,
+      m>1?`<span class="unstable">m = ${m.toFixed(2)} &gt; 1：过调制</span>`:`<span class="stable">m = ${m.toFixed(2)} ≤ 1：包络检波可用</span>`,
+    ]);
+  }
+  ["a-fc","a-fm","a-m"].forEach(id=>$(id).addEventListener("input",render));
+  window.addEventListener("resize",render);
+  render();
+})();
+
+/* ============ 画布尺寸初始化 + Tab 切换 ============ */
+document.querySelectorAll("canvas").forEach(cv=>{
+  const h=cv.getAttribute("height")||300;
+  cv.dataset.h=h;
+  cv.style.height=h+"px";
+  cv.removeAttribute("height");
+});
+document.getElementById("tabs").addEventListener("click",ev=>{
+  const btn=ev.target.closest("button");if(!btn)return;
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b===btn));
+  document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id==="tab-"+btn.dataset.t));
+  window.dispatchEvent(new Event("resize"));
+});
+</script>
+</body>
+</html>
