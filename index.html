@@ -7,7 +7,7 @@
 <style>
 :root{
   --bg:#f5f7fa; --panel:#ffffff; --ink:#1c2733; --muted:#6b7a89;
-  --accent:#0f6cbd; --accent2:#d97706; --good:#15803d; --bad:#b91c1c;
+  --accent:#0f6cbd; --good:#15803d; --bad:#b91c1c;
   --line:#dbe3ec; --chip:#eef4fb;
 }
 *{box-sizing:border-box}
@@ -337,7 +337,7 @@ function convRectRect(fWidth, T, dt) { // 矩形⊛矩形 数值卷积峰值
     setChips("samp-chips",[
       `fs/2 = <b>${(fs/2).toFixed(1)} kHz</b>`,
       aliased?`<span class="unstable">欠采样：f₀ &gt; fs/2</span>`:`<span class="stable">fs &gt; 2f₀，满足奈奎斯特</span>`,
-      aliased?`混叠频率 f<sub>a</sub> = |f₀ − fs| 类 = <b>${aAbs.toFixed(1)} kHz</b>（橙色重建）`:`重建频率 = <b>${aAbs.toFixed(1)} kHz</b>（= 原信号）`,
+      aliased?`混叠频率 f<sub>a</sub> = |f₀ − fs·round(f₀/fs)| = <b>${aAbs.toFixed(1)} kHz</b>（橙色重建）`:`重建频率 = <b>${aAbs.toFixed(1)} kHz</b>（= 原信号）`,
       `采样点数（图内）= <b>${n+1}</b>`,
       alias===0?`<span class="unstable">f₀ 恰为 fs 整数分点：采样值恒为 1，全部信息丢失</span>`:"",
     ].filter(Boolean));
@@ -451,8 +451,9 @@ function convRectRect(fWidth, T, dt) { // 矩形⊛矩形 数值卷积峰值
     // 理论锚点
     let theory="—";
     if(kind==="rect")theory=`梯形：峰 = min(2, T) = ${Math.min(2,T).toFixed(2)}`;
-    else if(kind==="tri")theory=`平滑双峰：峰 = ${ (2*T/2).toFixed(2) }×0.5×2 = ${(T).toFixed(2)}（中部）`;
-    else theory=`充电曲线：终值 = ∫₀^∞ e^(-x/T)dx = T = ${T.toFixed(2)}`;
+    else if(kind==="tri")theory=T<=1?`三角核：峰 = T = ${T.toFixed(2)}`
+      :`三角核（T>1 顶部截断）：峰 = 2−1/T = ${(2-1/T).toFixed(2)}`;
+    else theory=`宽 2 脉冲输入：峰值 = T(1−e^(−2/T)) = ${(T*(1-Math.exp(-2/T))).toFixed(2)}，随后衰减回 0`;
     setChips("conv-chips",[
       `h 类型：<b>${$("c-h").selectedOptions[0].text}</b>，T = <b>${T.toFixed(2)}</b>`,
       `t = <b>${ct.toFixed(2)}</b> 处阴影面积（=y）：<b>${yAt.toFixed(3)}</b>`,
@@ -572,16 +573,16 @@ function convRectRect(fWidth, T, dt) { // 矩形⊛矩形 数值卷积峰值
     const q=new Plot($("cv-am-f"));
     q.frame([fc-3*fm,fc+3*fm],[0,1.25]);
     q.stem(fc,0,1,"#0f6cbd",3);
-    q.stem(fc-fm,0,m/2,"#15803d",2.6);
-    q.stem(fc+fm,0,m/2,"#15803d",2.6);
+    q.stem(fc-fm,0,amSideband(m),"#15803d",2.6);
+    q.stem(fc+fm,0,amSideband(m),"#15803d",2.6);
     q.text("fc",fc,-0.09,"#0f6cbd",11,"center");
     q.text("fc−fm",fc-fm,-0.09,"#15803d",11,"center");
     q.text("fc+fm",fc+fm,-0.09,"#15803d",11,"center");
     q.screenText("边带 = m/2",q.X(fc+fm)+10,q.Y(m/2)+4,"#15803d",11,"left");
     setChips("am-chips",[
-      `边带幅度 m/2 = <b>${(m/2).toFixed(2)}</b>（上下各一根）`,
+      `边带幅度 m/2 = <b>${amSideband(m).toFixed(2)}</b>（上下各一根）`,
       `带宽 = 2f<sub>m</sub> = <b>${(2*fm).toFixed(1)} kHz</b>`,
-      `载波功率占比 = 1/(1+m²/2) = <b>${(100/(1+m*m/2)).toFixed(0)}%</b>${m>0?"（不携带信息）":""}`,
+      `载波功率占比 = 1/(1+m²/2) = <b>${carrierPowerPct(m).toFixed(0)}%</b>${m>0?"（不携带信息）":""}`,
       m>1?`<span class="unstable">m = ${m.toFixed(2)} &gt; 1：过调制</span>`:`<span class="stable">m = ${m.toFixed(2)} ≤ 1：包络检波可用</span>`,
     ]);
   }

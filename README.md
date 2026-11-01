@@ -45,3 +45,11 @@ python -m http.server 8125   # 浏览器打开 http://127.0.0.1:8125/
 ## License
 
 MIT
+
+## 测试
+
+```bash
+node tests/math.test.mjs
+```
+
+需要 Node ≥ 18。被测代码从 index.html 的 [MATH-BEGIN]..[MATH-END] 切片加载，测的就是页面跑的那份。

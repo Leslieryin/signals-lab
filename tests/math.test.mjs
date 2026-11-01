@@ -76,4 +76,22 @@ check('m=1 → 载波功率占比 66.7%', () => {
   assert.ok(Math.abs(math.carrierPowerPct(1) - 100 / 1.5) < 1e-9)
 })
 
+console.log('源码守卫：理论锚点与渲染实现统一')
+check('conv tri 锚点按 T 分段（含 2−1/T 分支）', () => {
+  assert.ok(html.includes('2-1/T'))
+})
+check('conv rc 锚点用脉冲输入峰值公式 T(1−e^(−2/T))', () => {
+  assert.ok(html.includes('1-Math.exp(-2/T)'))
+})
+check('混叠频率标签是一般式 |f₀ − fs·round(f₀/fs)|', () => {
+  assert.ok(html.includes('fs·round(f₀/fs)'))
+})
+check('AM 渲染调用切片函数（无平行内联实现）', () => {
+  assert.ok(html.includes('amSideband(m)') && html.includes('carrierPowerPct(m)'))
+  assert.ok(!html.includes('${(100/(1+m*m/2)).toFixed(0)}'))
+})
+check('死变量 --accent2 已删除', () => {
+  assert.ok(!html.includes('--accent2'))
+})
+
 console.log(`\n全部 ${passed} 项数学锚点通过 ✓`)
