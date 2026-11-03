@@ -1,6 +1,13 @@
 # signals-lab · 信号与系统交互实验台
 
+[![在线演示](https://img.shields.io/badge/demo-%E5%9C%A8%E7%BA%BF%E6%89%93%E5%BC%80-0f6cbd?style=flat-square)](https://leslieryin.github.io/signals-lab/)
+![CI](https://github.com/Leslieryin/signals-lab/actions/workflows/ci.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![deps](https://img.shields.io/badge/dependencies-none-2ea44f)
+
 **打开即用的单文件 HTML**——《信号与系统》课程五个核心概念的交互实现。零依赖、离线可用、所有计算在浏览器本地完成。
+
+> **EN** — A single-file interactive lab for Signals & Systems: sampling and aliasing, Fourier series and the Gibbs phenomenon, convolution, RC filters and AM modulation — every plot computed locally in the browser, zero dependencies. [Try it →](https://leslieryin.github.io/signals-lab/)
 
 控制实验台系列的第四件：[control-lab](https://github.com/Leslieryin/control-lab)（经典控制）、[modern-control-lab](https://github.com/Leslieryin/modern-control-lab)（现代控制）、[process-control-lab](https://github.com/Leslieryin/process-control-lab)（过程控制）之后，轮到信号与系统。
 
